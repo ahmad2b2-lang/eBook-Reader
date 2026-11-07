@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#f7f3ea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>eBook Reader</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    color-scheme: light only;
+    --paper: #f7f3ea;
+    --card: #ffffff;
+    --ink: #2b2620;
+    --muted: #7a7064;
+    --line: #e4dccd;
+    --accent: #8a5a2b;
+    --accent-soft: #f1e4d3;
+    --read: #2f7d4f;
+    --read-soft: #dff0e5;
+    --danger: #b3412e;
+    --radius: 14px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Arabic", Tahoma, sans-serif; }
+  body { overscroll-behavior: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .hidden { display: none !important; }
+  .view { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+  /* ---------- Login ---------- */
+  #login { align-items: center; justify-content: center; padding: 24px; }
+  .login-card { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 20px; padding: 28px 22px; box-shadow: 0 10px 30px rgba(80,60,30,.08); }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+  .brand img { width: 46px; height: 46px; }
+  .brand h1 { font-size: 22px; margin: 0; }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text], input[type=password], input[type=number] {
+    width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line);
+    background: #fffdf9; font-size: 17px; color: var(--ink); outline: none; }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: none; border-radius: 12px; padding: 13px 18px; font-size: 16px; font-weight: 600;
+    background: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .55; }
+  .btn.block { width: 100%; margin-top: 22px; }
+  .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  .btn.danger { background: var(--danger); }
+  .error { color: var(--danger); font-size: 14px; min-height: 20px; margin-top: 12px; }
+
+  /* ---------- Library ---------- */
+  .topbar { display: flex; align-items: center; gap: 10px; padding: calc(10px + var(--safe-top)) 14px 10px;
+    background: var(--paper); border-bottom: 1px solid var(--line); }
+  .topbar h2 { flex: 1; margin: 0; font-size: 20px; }
+  .icon-btn { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--card); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .icon-btn svg { width: 22px; height: 22px; }
+  #bookList { flex: 1; overflow-y: auto; padding: 14px 14px calc(100px + var(--safe-bottom)); display: grid; gap: 12px; align-content: start; }
+  .book { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
+    display: flex; gap: 14px; align-items: center; }
+  .book .spine { width: 44px; height: 60px; border-radius: 4px 8px 8px 4px; flex: none;
+    background: linear-gradient(90deg, #6e4520 0 7px, #9a6a3a 7px); box-shadow: inset -3px 0 0 rgba(255,255,255,.15); }
+  .book .info { flex: 1; min-width: 0; }
+  .book .title { font-weight: 650; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .book .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .bar { height: 6px; background: var(--accent-soft); border-radius: 6px; margin-top: 8px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--read); border-radius: 6px; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; line-height: 1.6; }
+  .fab { position: fixed; right: 18px; bottom: calc(18px + var(--safe-bottom)); padding: 15px 20px; border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(138,90,43,.3); }
+
+  /* ---------- Reader ---------- */
+  #reader { background: #ece6da; }
+  #reader .topbar { background: rgba(247,243,234,.97); z-index: 2; transition: transform .2s; }
+  #readerTitle { flex: 1; min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #stage { flex: 1; overflow: auto; position: relative; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; }
+  #canvasWrap { min-width: 100%; min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 8px; }
+  #pageCanvas { background: #fff; box-shadow: 0 2px 12px rgba(60,40,10,.18); display: block; transform-origin: center center; }
+  #readBadge { position: absolute; top: 14px; right: 14px; background: var(--read); color: #fff; font-size: 12px; font-weight: 700;
+    padding: 5px 9px; border-radius: 20px; pointer-events: none; opacity: 0; transition: opacity .3s; }
+  #readBadge.on { opacity: .92; }
+  .bottombar { background: rgba(247,243,234,.97); border-top: 1px solid var(--line);
+    padding: 8px 12px calc(8px + var(--safe-bottom)); z-index: 2; }
+  .navrow { display: flex; align-items: center; gap: 10px; }
+  #pageBtn { flex: 1; border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 10px; font-weight: 600; }
+  #pageBtn .tick { color: var(--read); }
+  #slider { width: 100%; margin: 6px 0 2px; accent-color: var(--accent); }
+  .loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; color: var(--muted); background: #ece6da; z-index: 1; text-align: center; padding: 20px; }
+  .loading .bar { width: 220px; }
+  .spinner { width: 34px; height: 34px; border: 3px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #reader.immersive .topbar { transform: translateY(-110%); position: absolute; left: 0; right: 0; top: 0; }
+  #reader.immersive .bottombar { position: absolute; left: 0; right: 0; bottom: 0; transform: translateY(110%); }
+  .bottombar { transition: transform .2s; }
+
+  /* ---------- Sheets ---------- */
+  .sheet-bg { position: fixed; inset: 0; background: rgba(40,30,15,.35); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { width: 100%; max-width: 560px; max-height: 85vh; background: var(--paper); border-radius: 20px 20px 0 0;
+    padding: 18px 16px calc(18px + var(--safe-bottom)); display: flex; flex-direction: column; }
+  .sheet h3 { margin: 0 0 12px; font-size: 18px; display: flex; align-items: center; justify-content: space-between; }
+  .grid { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 6px; padding: 4px 0; }
+  .grid button { border: 1px solid var(--line); background: var(--card); border-radius: 9px; padding: 10px 0; font-size: 14px; }
+  .grid button.read { background: var(--read-soft); border-color: #b9dfc6; color: var(--read); font-weight: 600; }
+  .grid button.current { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .legend { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+  .menu-list { display: grid; gap: 8px; }
+  .menu-list .btn { justify-content: flex-start; background: var(--card); color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+  .menu-list .btn.danger-text { color: var(--danger); }
+  .progress-line { margin-top: 14px; color: var(--muted); font-size: 14px; }
+
+  #toast { position: fixed; left: 50%; bottom: calc(90px + var(--safe-bottom)); transform: translateX(-50%);
+    background: #3a3128; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 20;
+    opacity: 0; pointer-events: none; transition: opacity .25s; max-width: 90vw; text-align: center; }
+  #toast.on { opacity: .95; }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="login" class="view hidden">
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <div class="brand">
+      <img src="icon.svg" alt="">
+      <div><h1>eBook Reader</h1><p>Sign in to your library</p></div>
+    </div>
+    <label for="username">Username</label>
+    <input id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="passcode">Passcode</label>
+    <input id="passcode" type="password" inputmode="numeric" autocomplete="current-password" required>
+    <button class="btn block" id="loginBtn" type="submit">Sign in</button>
+    <div class="error" id="loginError"></div>
+  </form>
+</section>
+
+<!-- ============ LIBRARY ============ -->
+<section id="library" class="view hidden">
+  <div class="topbar">
+    <h2>My Books</h2>
+    <button class="icon-btn" id="logoutBtn" title="Sign out" aria-label="Sign out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </button>
+  </div>
+  <div id="bookList"></div>
+  <button class="btn fab" id="uploadBtn">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    Upload book
+  </button>
+  <input type="file" id="fileInput" accept="application/pdf,.pdf" class="hidden">
+</section>
+
+<!-- ============ READER ============ -->
+<section id="reader" class="view hidden">
+  <div class="topbar">
+    <button class="icon-btn" id="backBtn" aria-label="Library">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </button>
+    <div id="readerTitle"></div>
+    <button class="icon-btn" id="zoomOutBtn" aria-label="Zoom out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6"/></svg>
+    </button>
+    <button class="icon-btn" id="zoomInBtn" aria-label="Zoom in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg>
+    </button>
+    <button class="icon-btn" id="menuBtn" aria-label="Book options">
+      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+    </button>
+  </div>
+  <div id="stage">
+    <div id="canvasWrap"><canvas id="pageCanvas"></canvas></div>
+    <div id="readBadge">✓ Read</div>
+    <div class="loading hidden" id="loading">
+      <div class="spinner"></div>
+      <div id="loadingText">Opening book…</div>
+      <div class="bar hidden" id="loadingBar"><i style="width:0%"></i></div>
+    </div>
+  </div>
+  <div class="bottombar">
+    <input type="range" id="slider" min="1" max="1" value="1" aria-label="Page">
+    <div class="navrow">
+      <button class="icon-btn" id="leftBtn" aria-label="Turn page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button id="pageBtn">Page – / –</button>
+      <button class="icon-btn" id="rightBtn" aria-label="Turn page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SHEETS ============ -->
+<div class="sheet-bg hidden" id="pagesSheet">
+  <div class="sheet">
+    <h3><span>Pages</span><button class="icon-btn" data-close aria-label="Close">✕</button></h3>
+    <p class="legend" id="pagesLegend"></p>
+    <div class="row" style="margin-bottom:12px">
+      <input type="number" id="gotoInput" inputmode="numeric" min="1" placeholder="Go to page…">
+      <button class="btn" id="gotoBtn">Go</button>
+    </div>
+    <div class="grid" id="pagesGrid"></div>
+  </div>
+</div>
+
+<div class="sheet-bg hidden" id="uploadSheet">
+  <div class="sheet">
+    <h3><span>Upload book</span><button class="icon-btn" data-close id="uploadClose" aria-label="Close">✕</button></h3>
+    <div id="uploadFileName" class="legend"></div>
+    <label for="bookTitle" style="margin-top:0">Book title</label>
+    <input type="text" id="bookTitle" dir="auto">
+    <button class="btn block" id="startUpload">Upload</button>
+    <div class="bar hidden" id="uploadBar" style="height:8px;margin-top:16px"><i style="width:0%"></i></div>
+    <div class="progress-line" id="uploadStatus"></div>
+  </div>
+</div>
+
+<div class="sheet-bg hidden" id="menuSheet">
+  <div class="sheet">
+    <h3><span id="menuTitle">Book</span><button class="icon-btn" data-close aria-label="Close">✕</button></h3>
+    <div class="menu-list">
+      <button class="btn" id="dirBtn"></button>
+      <button class="btn" id="renameBtn">Rename book</button>
+      <button class="btn" id="markUnreadBtn">Mark this page as unread</button>
+      <button class="btn" id="libraryBtn">Back to library</button>
+      <button class="btn danger-text" id="deleteBtn">Delete book</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+
+// ---------------- Config ----------------
+const SB_URL = 'https://bhfgwlkzkbwcwyoypwhy.supabase.co';
+const SB_KEY = 'sb_publishable_9YylflVQca-62NHsBKSTeA_GY896nj3';
+const BUCKET = 'ebook-reader';
+const EMAIL_DOMAIN = 'ebook-reader.app';
+const CACHE_NAME = 'ebook-reader-pdfs-v1';
+const READ_AFTER_MS = 3000;     // dwell time that marks a page read
+const FORWARD_MIN_MS = 1000;    // moving forward after this long also marks it read
+
+const sb = createClient(SB_URL, SB_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, storageKey: 'ebook-reader-auth' }
+});
+
+// ---------------- Helpers ----------------
+const $ = (id) => document.getElementById(id);
+const views = ['login', 'library', 'reader'];
+function show(view) { views.forEach(v => $(v).classList.toggle('hidden', v !== view)); }
+let toastTimer;
+function toast(msg, ms = 2400) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), ms);
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtSize(b) { if (!b) return ''; const mb = b / 1048576; return mb >= 1 ? mb.toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB'; }
+function openSheet(id) { $(id).classList.remove('hidden'); }
+function closeSheet(id) { $(id).classList.add('hidden'); }
+document.querySelectorAll('.sheet-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg || e.target.closest('[data-close]')) { if (bg.id === 'uploadSheet' && uploading) return; bg.classList.add('hidden'); } });
+});
+
+let user = null;
+
+// ---------------- Auth ----------------
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = $('username').value.trim().toLowerCase();
+  const pass = $('passcode').value.trim();
+  $('loginError').textContent = '';
+  if (!/^[a-z0-9._-]+$/.test(username)) { $('loginError').textContent = 'Please check your username.'; return; }
+  $('loginBtn').disabled = true; $('loginBtn').textContent = 'Signing in…';
+  const { data, error } = await sb.auth.signInWithPassword({ email: `${username}@${EMAIL_DOMAIN}`, password: pass });
+  $('loginBtn').disabled = false; $('loginBtn').textContent = 'Sign in';
+  if (error) { $('loginError').textContent = 'Wrong username or passcode.'; return; }
+  $('passcode').value = '';
+  await afterLogin(data.user);
+});
+
+$('logoutBtn').addEventListener('click', async () => {
+  if (!confirm('Sign out of eBook Reader?')) return;
+  await sb.auth.signOut();
+  user = null; show('login');
+});
+
+async function afterLogin(u) {
+  user = u;
+  const { data: member } = await sb.from('ebook_members').select('username').eq('user_id', u.id).maybeSingle();
+  if (!member) {
+    await sb.auth.signOut(); user = null; show('login');
+    $('loginError').textContent = 'This account has no access to eBook Reader.';
+    return;
+  }
+  flushPending();
+  // Resume where you stopped
+  let lastId = localStorage.getItem('ebook-last-book');
+  const { data: st } = await sb.from('ebook_state').select('last_book_id').eq('owner_id', u.id).maybeSingle();
+  if (st) lastId = st.last_book_id;
+  if (lastId) {
+    const { data: book } = await sb.from('ebook_books').select('*').eq('id', lastId).maybeSingle();
+    if (book) { openBook(book); return; }
+  }
+  showLibrary();
+}
+
+// ---------------- Library ----------------
+let books = [];
+async function showLibrary() {
+  show('library');
+  await saveState(null);
+  const list = $('bookList');
+  list.innerHTML = '<div class="empty">Loading…</div>';
+  const { data, error } = await sb.from('ebook_books').select('*').order('updated_at', { ascending: false });
+  if (error) { list.innerHTML = '<div class="empty">Could not load your books. Check your connection.</div>'; return; }
+  books = data;
+  const counts = {};
+  if (books.length) {
+    const { data: rows } = await sb.from('ebook_pages_read').select('book_id');
+    (rows || []).forEach(r => counts[r.book_id] = (counts[r.book_id] || 0) + 1);
+  }
+  if (!books.length) {
+    list.innerHTML = '<div class="empty">No books yet.<br>Tap <b>Upload book</b> to add your first PDF.</div>';
+    return;
+  }
+  list.innerHTML = books.map(b => {
+    const read = counts[b.id] || 0, total = b.page_count || 0;
+    const pct = total ? Math.round(read / total * 100) : 0;
+    return `<div class="book" data-id="${b.id}">
+      <div class="spine"></div>
+      <div class="info">
+        <div class="title" dir="auto">${esc(b.title)}</div>
+        <div class="meta">Page ${b.last_page} of ${total || '?'} · ${read} read (${pct}%)</div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+$('bookList').addEventListener('click', (e) => {
+  const el = e.target.closest('.book'); if (!el) return;
+  const b = books.find(x => x.id === el.dataset.id); if (b) openBook(b);
+});
+
+// ---------------- Upload ----------------
+let pendingFile = null, uploading = false;
+$('uploadBtn').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', () => {
+  const f = $('fileInput').files[0]; $('fileInput').value = '';
+  if (!f) return;
+  if (f.type && f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) { toast('Please choose a PDF file.'); return; }
+  pendingFile = f;
+  $('uploadFileName').textContent = `${f.name} · ${fmtSize(f.size)}`;
+  $('bookTitle').value = f.name.replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').trim();
+  $('uploadStatus').textContent = ''; $('uploadBar').classList.add('hidden');
+  $('startUpload').disabled = false;
+  openSheet('uploadSheet');
+});
+
+$('startUpload').addEventListener('click', async () => {
+  if (!pendingFile || uploading) return;
+  const title = $('bookTitle').value.trim() || pendingFile.name;
+  uploading = true; $('startUpload').disabled = true; $('uploadClose').disabled = true;
+  const status = $('uploadStatus'), bar = $('uploadBar');
+  try {
+    status.textContent = 'Reading the PDF…';
+    const buf = await pendingFile.arrayBuffer();
+    let pageCount;
+    try {
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)) }).promise;
+      pageCount = doc.numPages; doc.destroy();
+    } catch { throw new Error('This file could not be opened as a PDF.'); }
+
+    const id = crypto.randomUUID();
+    const path = `${user.id}/${id}.pdf`;
+    bar.classList.remove('hidden');
+    status.textContent = 'Uploading… 0%';
+    await uploadWithProgress(path, pendingFile, (p) => {
+      bar.firstElementChild.style.width = p + '%';
+      status.textContent = `Uploading… ${p}%`;
+    });
+
+    status.textContent = 'Saving…';
+    const { data: book, error } = await sb.from('ebook_books')
+      .insert({ id, title, file_path: path, file_size: pendingFile.size, page_count: pageCount, last_page: 1 })
+      .select().single();
+    if (error) { await sb.storage.from(BUCKET).remove([path]); throw new Error('Could not save the book. ' + error.message); }
+
+    try { const c = await caches.open(CACHE_NAME); await c.put(cacheKey(id), new Response(buf, { headers: { 'Content-Type': 'application/pdf' } })); } catch {}
+    closeSheet('uploadSheet');
+    toast(`“${title}” added · ${pageCount} pages`);
+    pendingFile = null;
+    openBook(book);
+  } catch (err) {
+    status.textContent = err.message || 'Upload failed.';
+  } finally {
+    uploading = false; $('startUpload').disabled = false; $('uploadClose').disabled = false;
+  }
+});
+
+async function uploadWithProgress(path, file, onProgress) {
+  const { data: { session } } = await sb.auth.getSession();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${SB_URL}/storage/v1/object/${BUCKET}/${path}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+    xhr.setRequestHeader('apikey', SB_KEY);
+    xhr.setRequestHeader('x-upsert', 'false');
+    xhr.setRequestHeader('Content-Type', 'application/pdf');
+    xhr.setRequestHeader('cache-control', 'max-age=3600');
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100)); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve();
+      let msg = '';
+      try { msg = JSON.parse(xhr.responseText).message || ''; } catch {}
+      if (xhr.status === 413 || /size|large/i.test(msg)) reject(new Error(`The file is too large for your Supabase storage limit (${fmtSize(file.size)}).`));
+      else reject(new Error('Upload failed: ' + (msg || xhr.status)));
+    };
+    xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+    xhr.send(file);
+  });
+}
+
+// ---------------- PDF loading (with on-device cache) ----------------
+function cacheKey(id) { return new Request(`${location.origin}/__ebook-cache__/${id}.pdf`); }
+
+async function loadPdfBytes(book, onProgress) {
+  try {
+    const c = await caches.open(CACHE_NAME);
+    const hit = await c.match(cacheKey(book.id));
+    if (hit) return new Uint8Array(await hit.arrayBuffer());
+  } catch {}
+  const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(book.file_path, 3600);
+  if (error) throw new Error('Could not find the book file.');
+  const res = await fetch(data.signedUrl);
+  if (!res.ok) throw new Error('Download failed.');
+  const total = +res.headers.get('Content-Length') || book.file_size || 0;
+  const reader = res.body.getReader();
+  const chunks = []; let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    if (total) onProgress(Math.min(100, Math.round(got / total * 100)));
+  }
+  const bytes = new Uint8Array(got); let off = 0;
+  for (const ch of chunks) { bytes.set(ch, off); off += ch.length; }
+  try { const c = await caches.open(CACHE_NAME); await c.put(cacheKey(book.id), new Response(bytes.slice(0), { headers: { 'Content-Type': 'application/pdf' } })); } catch {}
+  return bytes;
+}
+
+// ---------------- Reader ----------------
+const R = {
+  book: null, pdf: null, page: 1, total: 0, zoom: 1, readSet: new Set(),
+  shownAt: 0, readTimer: null, renderTask: null, renderToken: 0, cache: new Map()
+};
+const canvas = $('pageCanvas'), stage = $('stage');
+
+async function openBook(book) {
+  closeAllSheets();
+  show('reader');
+  $('reader').classList.remove('immersive');
+  R.book = book; R.page = Math.max(1, book.last_page || 1); R.zoom = 1; R.cache.clear();
+  if (R.pdf) { try { R.pdf.destroy(); } catch {} R.pdf = null; }
+  $('readerTitle').textContent = book.title;
+  $('readerTitle').dir = 'auto';
+  canvas.width = canvas.height = 0;
+  setLoading(true, 'Opening book…');
+  localStorage.setItem('ebook-last-book', book.id);
+  saveState(book.id);
+
+  const readQ = sb.from('ebook_pages_read').select('page').eq('book_id', book.id);
+  try {
+    const bytes = await loadPdfBytes(book, (p) => setLoading(true, `Downloading book… ${p}%`, p));
+    setLoading(true, 'Opening book…');
+    R.pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+  } catch (err) {
+    setLoading(true, (err.message || 'Could not open this book.') + ' Tap the book icon to go back.');
+    $('loading').querySelector('.spinner').classList.add('hidden');
+    return;
+  }
+  $('loading').querySelector('.spinner').classList.remove('hidden');
+  R.total = R.pdf.numPages;
+  if (R.total !== book.page_count) sb.from('ebook_books').update({ page_count: R.total }).eq('id', book.id).then(() => {});
+  const { data: rows } = await readQ;
+  R.readSet = new Set((rows || []).map(r => r.page));
+  pendingFor(book.id).forEach(p => R.readSet.add(p));
+  $('slider').max = R.total;
+  if (R.page > R.total) R.page = R.total;
+  setLoading(false);
+  updateDirUI();
+  goTo(R.page, { initial: true });
+  requestWakeLock();
+}
+
+function setLoading(on, text, pct) {
+  $('loading').classList.toggle('hidden', !on);
+  if (text) $('loadingText').textContent = text;
+  const bar = $('loadingBar');
+  if (pct == null) bar.classList.add('hidden');
+  else { bar.classList.remove('hidden'); bar.firstElementChild.style.width = pct + '%'; }
+}
+
+function goTo(n, opts = {}) {
+  if (!R.pdf) return;
+  n = Math.max(1, Math.min(R.total, n));
+  if (!opts.initial) {
+    const prev = R.page;
+    if (n > prev && Date.now() - R.shownAt >= FORWARD_MIN_MS) markRead(prev);
+  }
+  R.page = n;
+  R.shownAt = Date.now();
+  clearTimeout(R.readTimer);
+  const pageAtStart = n;
+  R.readTimer = setTimeout(() => { if (R.page === pageAtStart && !document.hidden) markRead(pageAtStart); }, READ_AFTER_MS);
+  updatePageUI();
+  render();
+  savePosition();
+}
+
+function updatePageUI() {
+  const isRead = R.readSet.has(R.page);
+  $('pageBtn').innerHTML = `Page ${R.page} / ${R.total}${isRead ? ' <span class="tick">✓</span>' : ''}`;
+  $('slider').value = R.page;
+  $('readBadge').classList.toggle('on', isRead);
+}
+
+function fitScale(page) {
+  const vp = page.getViewport({ scale: 1 });
+  const w = stage.clientWidth - 16, h = stage.clientHeight - 16;
+  return Math.min(w / vp.width, h / vp.height);
+}
+
+async function drawPage(num, target) {
+  const page = await R.pdf.getPage(num);
+  const css = fitScale(page) * R.zoom;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  let scale = css * dpr;
+  const vp0 = page.getViewport({ scale: 1 });
+  const maxSide = 4096;
+  scale = Math.min(scale, maxSide / Math.max(vp0.width, vp0.height));
+  const vp = page.getViewport({ scale });
+  target.width = Math.floor(vp.width); target.height = Math.floor(vp.height);
+  target.style.width = Math.floor(vp0.width * css) + 'px';
+  target.style.height = Math.floor(vp0.height * css) + 'px';
+  const task = page.render({ canvasContext: target.getContext('2d', { alpha: false }), viewport: vp, background: '#ffffff' });
+  return task;
+}
+
+async function render() {
+  const token = ++R.renderToken;
+  const key = `${R.page}@${R.zoom}@${stage.clientWidth}x${stage.clientHeight}`;
+  const cached = R.cache.get(key);
+  if (cached) {
+    canvas.width = cached.width; canvas.height = cached.height;
+    canvas.style.width = cached.style.width; canvas.style.height = cached.style.height;
+    canvas.getContext('2d').drawImage(cached, 0, 0);
+  } else {
+    if (R.renderTask) { try { R.renderTask.cancel(); } catch {} }
+    const off = document.createElement('canvas');
+    try {
+      const task = await drawPage(R.page, off);
+      if (token !== R.renderToken) { task.cancel(); return; }
+      R.renderTask = task;
+      await task.promise;
+    } catch (e) { if (e && e.name === 'RenderingCancelledException') return; console.error(e); return; }
+    if (token !== R.renderToken) return;
+    canvas.width = off.width; canvas.height = off.height;
+    canvas.style.width = off.style.width; canvas.style.height = off.style.height;
+    canvas.getContext('2d').drawImage(off, 0, 0);
+    remember(key, off);
+  }
+  canvas.style.transform = '';
+  if (R.zoom === 1) stage.scrollTo(0, 0);
+  prerender(R.page + 1, token); prerender(R.page - 1, token);
+}
+
+function remember(key, c) {
+  R.cache.set(key, c);
+  while (R.cache.size > 4) R.cache.delete(R.cache.keys().next().value);
+}
+async function prerender(n, token) {
+  if (n < 1 || n > R.total) return;
+  const key = `${n}@${R.zoom}@${stage.clientWidth}x${stage.clientHeight}`;
+  if (R.cache.has(key)) return;
+  await new Promise(r => setTimeout(r, 250));
+  if (token !== R.renderToken) return;
+  try { const off = document.createElement('canvas'); const t = await drawPage(n, off); await t.promise; if (token === R.renderToken || Math.abs(n - R.page) <= 1) remember(key, off); } catch {}
+}
+
+// ---- Progress saving ----
+let saveTimer;
+function savePosition() {
+  localStorage.setItem('ebook-last-book', R.book.id);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => flushPosition(), 700);
+}
+async function flushPosition() {
+  if (!R.book) return;
+  clearTimeout(saveTimer);
+  R.book.last_page = R.page;
+  await sb.from('ebook_books').update({ last_page: R.page, updated_at: new Date().toISOString() }).eq('id', R.book.id);
+}
+async function saveState(bookId) {
+  if (!user) return;
+  if (bookId) localStorage.setItem('ebook-last-book', bookId); else localStorage.removeItem('ebook-last-book');
+  await sb.from('ebook_state').upsert({ owner_id: user.id, last_book_id: bookId, updated_at: new Date().toISOString() });
+}
+
+// ---- Read marking (with offline retry) ----
+function pendingAll() { try { return JSON.parse(localStorage.getItem('ebook-pending') || '[]'); } catch { return []; } }
+function pendingFor(bookId) { return pendingAll().filter(p => p.book_id === bookId).map(p => p.page); }
+function setPending(list) { localStorage.setItem('ebook-pending', JSON.stringify(list)); }
+
+async function markRead(n) {
+  if (!R.book || R.readSet.has(n)) return;
+  R.readSet.add(n);
+  if (n === R.page) updatePageUI();
+  const row = { book_id: R.book.id, page: n };
+  const { error } = await sb.from('ebook_pages_read').upsert(row, { onConflict: 'book_id,page', ignoreDuplicates: true });
+  if (error) { const l = pendingAll(); l.push(row); setPending(l); }
+}
+async function flushPending() {
+  const l = pendingAll(); if (!l.length) return;
+  const { error } = await sb.from('ebook_pages_read').upsert(l, { onConflict: 'book_id,page', ignoreDuplicates: true });
+  if (!error) setPending([]);
+}
+window.addEventListener('online', flushPending);
+
+async function markUnread(n) {
+  if (!R.readSet.has(n)) { toast('This page is not marked as read.'); return; }
+  R.readSet.delete(n);
+  clearTimeout(R.readTimer);
+  setPending(pendingAll().filter(p => !(p.book_id === R.book.id && p.page === n)));
+  await sb.from('ebook_pages_read').delete().eq('book_id', R.book.id).eq('page', n);
+  updatePageUI(); toast(`Page ${n} marked as unread`);
+}
+
+// ---- Navigation controls ----
+function next() { if (R.page < R.total) goTo(R.page + 1); else toast('This is the last page'); }
+function prev() { if (R.page > 1) goTo(R.page - 1); else toast('This is the first page'); }
+// Right-to-left books (Arabic etc.): the left side moves forward.
+function leftAction() { R.book && R.book.rtl ? next() : prev(); }
+function rightAction() { R.book && R.book.rtl ? prev() : next(); }
+
+$('leftBtn').addEventListener('click', leftAction);
+$('rightBtn').addEventListener('click', rightAction);
+$('slider').addEventListener('input', () => { $('pageBtn').textContent = `Page ${$('slider').value} / ${R.total}`; });
+$('slider').addEventListener('change', () => goTo(+$('slider').value));
+$('backBtn').addEventListener('click', async () => { await flushPosition(); closeReader(); showLibrary(); });
+document.addEventListener('keydown', (e) => {
+  if ($('reader').classList.contains('hidden') || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') leftAction();
+  else if (e.key === 'ArrowRight') rightAction();
+});
+
+function closeReader() {
+  clearTimeout(R.readTimer); R.renderToken++;
+  if (R.pdf) { try { R.pdf.destroy(); } catch {} }
+  R.pdf = null; R.book = null; R.cache.clear(); releaseWakeLock();
+}
+
+// Zoom
+function setZoom(z) {
+  z = Math.max(1, Math.min(4, Math.round(z * 100) / 100));
+  if (z === R.zoom) return;
+  const cx = (stage.scrollLeft + stage.clientWidth / 2) / Math.max(1, stage.scrollWidth);
+  const cy = (stage.scrollTop + stage.clientHeight / 2) / Math.max(1, stage.scrollHeight);
+  R.zoom = z;
+  render().then(() => {
+    stage.scrollLeft = cx * stage.scrollWidth - stage.clientWidth / 2;
+    stage.scrollTop = cy * stage.scrollHeight - stage.clientHeight / 2;
+  });
+}
+$('zoomInBtn').addEventListener('click', () => setZoom(R.zoom * 1.5));
+$('zoomOutBtn').addEventListener('click', () => setZoom(R.zoom / 1.5));
+
+// Touch: tap edges to turn, tap middle to hide bars, swipe to turn, pinch to zoom
+let t0 = null, pinch = null;
+stage.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    const [a, b] = e.touches;
+    pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), ratio: 1 };
+    t0 = null; return;
+  }
+  if (e.touches.length === 1 && !pinch) {
+    const t = e.touches[0];
+    t0 = { x: t.clientX, y: t.clientY, time: Date.now(), sl: stage.scrollLeft };
+  }
+}, { passive: true });
+stage.addEventListener('touchmove', (e) => {
+  if (pinch && e.touches.length === 2) {
+    e.preventDefault();
+    const [a, b] = e.touches;
+    pinch.ratio = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinch.d;
+    canvas.style.transform = `scale(${Math.max(0.5, Math.min(4, pinch.ratio))})`;
+  }
+}, { passive: false });
+stage.addEventListener('touchend', (e) => {
+  if (pinch) {
+    if (e.touches.length === 0) { const r = pinch.ratio; pinch = null; canvas.style.transform = ''; setZoom(R.zoom * r); }
+    return;
+  }
+  if (!t0) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - t0.x, dy = t.clientY - t0.y, dt = Date.now() - t0.time;
+  const start = t0; t0 = null;
+  if (R.zoom > 1) {
+    // When zoomed, swipe only turns the page if already scrolled to the edge
+    const atLeft = stage.scrollLeft <= 1, atRight = stage.scrollLeft + stage.clientWidth >= stage.scrollWidth - 1;
+    if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5 && start.sl === stage.scrollLeft) {
+      if (dx > 0 && atLeft) leftAction(); else if (dx < 0 && atRight) rightAction();
+    } else if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) toggleBars();
+    return;
+  }
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3 && dt < 800) {
+    dx > 0 ? leftAction() : rightAction();   // swipe right = reveal left side
+    return;
+  }
+  if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) handleTap(t.clientX);
+});
+let lastTouch = 0;
+stage.addEventListener('touchend', () => { lastTouch = Date.now(); }, { passive: true });
+stage.addEventListener('click', (e) => {
+  // Mouse clicks (desktop). Touch taps are already handled in touchend.
+  if (Date.now() - lastTouch < 800) return;
+  if (R.zoom > 1) return;
+  handleTap(e.clientX);
+});
+function handleTap(x) {
+  const w = stage.clientWidth;
+  if (x < w * 0.3) leftAction();
+  else if (x > w * 0.7) rightAction();
+  else toggleBars();
+}
+function toggleBars() { $('reader').classList.toggle('immersive'); setTimeout(() => { R.cache.clear(); render(); }, 230); }
+
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (R.pdf) { R.cache.clear(); render(); } }, 200); });
+
+// ---- Pages sheet ----
+$('pageBtn').addEventListener('click', () => {
+  const g = $('pagesGrid');
+  const read = R.readSet.size;
+  $('pagesLegend').textContent = `${read} of ${R.total} pages read (${Math.round(read / R.total * 100)}%). Green = read.`;
+  let html = '';
+  for (let i = 1; i <= R.total; i++) html += `<button data-p="${i}" class="${R.readSet.has(i) ? 'read' : ''}${i === R.page ? ' current' : ''}">${i}</button>`;
+  g.innerHTML = html;
+  $('gotoInput').max = R.total; $('gotoInput').value = '';
+  openSheet('pagesSheet');
+  const cur = g.querySelector('.current'); if (cur) cur.scrollIntoView({ block: 'center' });
+});
+$('pagesGrid').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-p]'); if (!b) return;
+  closeSheet('pagesSheet'); goTo(+b.dataset.p);
+});
+$('gotoBtn').addEventListener('click', () => {
+  const n = parseInt($('gotoInput').value, 10);
+  if (!n || n < 1 || n > R.total) { toast(`Enter a page from 1 to ${R.total}`); return; }
+  closeSheet('pagesSheet'); goTo(n);
+});
+$('gotoInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('gotoBtn').click(); });
+
+// ---- Book menu ----
+function updateDirUI() {
+  $('dirBtn').textContent = R.book && R.book.rtl
+    ? 'Page turning: right-to-left (Arabic) — tap to change'
+    : 'Page turning: left-to-right — tap to change';
+}
+$('menuBtn').addEventListener('click', () => { $('menuTitle').textContent = R.book.title; updateDirUI(); openSheet('menuSheet'); });
+$('dirBtn').addEventListener('click', async () => {
+  R.book.rtl = !R.book.rtl; updateDirUI();
+  await sb.from('ebook_books').update({ rtl: R.book.rtl }).eq('id', R.book.id);
+  toast(R.book.rtl ? 'Swipe right / tap left for the next page' : 'Swipe left / tap right for the next page');
+});
+$('renameBtn').addEventListener('click', async () => {
+  const t = prompt('Book title', R.book.title);
+  if (!t || !t.trim()) return;
+  R.book.title = t.trim();
+  $('readerTitle').textContent = R.book.title; $('menuTitle').textContent = R.book.title;
+  await sb.from('ebook_books').update({ title: R.book.title }).eq('id', R.book.id);
+  toast('Renamed');
+});
+$('markUnreadBtn').addEventListener('click', () => { closeSheet('menuSheet'); markUnread(R.page); });
+$('libraryBtn').addEventListener('click', async () => { closeSheet('menuSheet'); await flushPosition(); closeReader(); showLibrary(); });
+$('deleteBtn').addEventListener('click', async () => {
+  const b = R.book;
+  if (!confirm(`Delete “${b.title}” and its reading progress? This cannot be undone.`)) return;
+  closeSheet('menuSheet');
+  await sb.storage.from(BUCKET).remove([b.file_path]);
+  const { error } = await sb.from('ebook_books').delete().eq('id', b.id);
+  try { const c = await caches.open(CACHE_NAME); await c.delete(cacheKey(b.id)); } catch {}
+  setPending(pendingAll().filter(p => p.book_id !== b.id));
+  closeReader();
+  toast(error ? 'Could not delete the book.' : 'Book deleted');
+  showLibrary();
+});
+
+function closeAllSheets() { document.querySelectorAll('.sheet-bg').forEach(s => s.classList.add('hidden')); }
+
+// ---- Keep the screen on while reading ----
+let wakeLock = null;
+async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {} }
+function releaseWakeLock() { try { wakeLock && wakeLock.release(); } catch {} wakeLock = null; }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (R.book) flushPosition(); }
+  else if (R.book) { requestWakeLock(); R.shownAt = Date.now(); goTo(R.page, { initial: true }); }
+});
+window.addEventListener('pagehide', () => { if (R.book) flushPosition(); });
+
+// ---------------- Start ----------------
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user) await afterLogin(session.user);
+  else show('login');
+})();
+</script>
+</body>
+</html>
