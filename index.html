@@ -36,8 +36,8 @@
   .view { position: fixed; inset: 0; display: flex; flex-direction: column; }
 
   /* ---------- Login ---------- */
-  #login { align-items: center; justify-content: center; padding: 24px; }
-  .login-card { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--line);
+  #login { padding: 24px; overflow-y: auto; }
+  .login-card { margin: auto; width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--line);
     border-radius: 20px; padding: 28px 22px; box-shadow: 0 10px 30px rgba(80,60,30,.08); }
   .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
   .brand img { width: 46px; height: 46px; }
@@ -83,8 +83,9 @@
   #reader .topbar { background: rgba(247,243,234,.97); z-index: 2; transition: transform .2s; }
   #readerTitle { flex: 1; min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #stage { flex: 1; overflow: auto; position: relative; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; }
-  #canvasWrap { min-width: 100%; min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 8px; }
-  #pageCanvas { background: #fff; box-shadow: 0 2px 12px rgba(60,40,10,.18); display: block; transform-origin: center center; }
+  /* auto margins keep the page centred but never cut off its edges when it is bigger than the screen */
+  #canvasWrap { width: max-content; min-width: 100%; min-height: 100%; display: flex; padding: 8px; }
+  #pageCanvas { margin: auto; flex: none; background: #fff; box-shadow: 0 2px 12px rgba(60,40,10,.18); display: block; transform-origin: center center; }
   #readBadge { position: absolute; top: 14px; right: 14px; background: var(--read); color: #fff; font-size: 12px; font-weight: 700;
     padding: 5px 9px; border-radius: 20px; pointer-events: none; opacity: 0; transition: opacity .3s; }
   #readBadge.on { opacity: .92; }
@@ -106,7 +107,7 @@
 
   /* ---------- Sheets ---------- */
   .sheet-bg { position: fixed; inset: 0; background: rgba(40,30,15,.35); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
-  .sheet { width: 100%; max-width: 560px; max-height: 85vh; background: var(--paper); border-radius: 20px 20px 0 0;
+  .sheet { overflow-y: auto; width: 100%; max-width: 560px; max-height: 85vh; max-height: 85dvh; background: var(--paper); border-radius: 20px 20px 0 0;
     padding: 18px 16px calc(18px + var(--safe-bottom)); display: flex; flex-direction: column; }
   .sheet h3 { margin: 0 0 12px; font-size: 18px; display: flex; align-items: center; justify-content: space-between; }
   .grid { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 6px; padding: 4px 0; }
@@ -119,6 +120,34 @@
   .menu-list .btn { justify-content: flex-start; background: var(--card); color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
   .menu-list .btn.danger-text { color: var(--danger); }
   .progress-line { margin-top: 14px; color: var(--muted); font-size: 14px; }
+
+  /* ---------- Notch / rounded corners when sideways ---------- */
+  .topbar, .bottombar { padding-left: calc(12px + env(safe-area-inset-left, 0px)); padding-right: calc(12px + env(safe-area-inset-right, 0px)); }
+  #bookList { padding-left: calc(14px + env(safe-area-inset-left, 0px)); padding-right: calc(14px + env(safe-area-inset-right, 0px));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .fab { right: calc(18px + env(safe-area-inset-right, 0px)); }
+
+  /* ---------- Landscape phone: slim bars so the page gets the room ---------- */
+  @media (orientation: landscape) and (max-height: 560px) {
+    .topbar { padding-top: calc(4px + var(--safe-top)); padding-bottom: 4px; gap: 8px; }
+    .topbar h2 { font-size: 17px; }
+    .icon-btn { width: 36px; height: 36px; border-radius: 10px; }
+    .icon-btn svg { width: 19px; height: 19px; }
+    .bottombar { display: flex; align-items: center; gap: 12px; padding-top: 4px; padding-bottom: calc(4px + var(--safe-bottom)); }
+    #slider { flex: 1; margin: 0; }
+    .navrow { flex: none; }
+    #pageBtn { flex: none; padding: 7px 12px; min-width: 130px; }
+    #readBadge { top: 8px; right: calc(12px + env(safe-area-inset-right, 0px)); }
+    .fab { padding: 11px 16px; bottom: calc(12px + var(--safe-bottom)); }
+    #bookList { padding-top: 10px; padding-bottom: calc(76px + var(--safe-bottom)); }
+    .login-card { padding: 18px 20px; }
+    .brand { margin-bottom: 8px; }
+    .btn.block { margin-top: 14px; }
+    label { margin: 8px 0 4px; }
+    input[type=text], input[type=password], input[type=number] { padding: 10px 12px; }
+    .sheet { max-height: 92dvh; max-width: 640px; }
+    body #toast { bottom: calc(60px + var(--safe-bottom)); }
+  }
 
   #toast { position: fixed; left: 50%; bottom: calc(90px + var(--safe-bottom)); transform: translateX(-50%);
     background: #3a3128; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 20;
@@ -521,6 +550,8 @@ function goTo(n, opts = {}) {
     const prev = R.page;
     if (n > prev && Date.now() - R.shownAt >= FORWARD_MIN_MS) markRead(prev);
   }
+  // Going back to the previous page in a tall (scrolling) view starts at its bottom
+  R.scrollTo = (!opts.initial && n === R.page - 1) ? 'bottom' : 'top';
   R.page = n;
   R.shownAt = Date.now();
   clearTimeout(R.readTimer);
@@ -538,11 +569,24 @@ function updatePageUI() {
   $('readBadge').classList.toggle('on', isRead);
 }
 
+// Landscape (wide screen): fit the page to the width and scroll down to read.
+// Portrait: fit the whole page on screen.
+function isWide() { return stage.clientWidth > stage.clientHeight * 1.1; }
 function fitScale(page) {
   const vp = page.getViewport({ scale: 1 });
+  R.vp1 = { w: vp.width, h: vp.height };
   const w = stage.clientWidth - 16, h = stage.clientHeight - 16;
-  return Math.min(w / vp.width, h / vp.height);
+  const byWidth = w / vp.width, wholePage = Math.min(byWidth, h / vp.height);
+  return isWide() ? byWidth : wholePage;
 }
+// Smallest zoom: in landscape you can zoom out until the whole page fits
+function minZoom() {
+  if (!R.vp1 || !isWide()) return 1;
+  const w = stage.clientWidth - 16, h = stage.clientHeight - 16;
+  const byWidth = w / R.vp1.w, wholePage = Math.min(byWidth, h / R.vp1.h);
+  return Math.min(1, wholePage / byWidth);
+}
+function canPan() { return stage.scrollWidth > stage.clientWidth + 2; }
 
 async function drawPage(num, target) {
   const page = await R.pdf.getPage(num);
@@ -584,7 +628,12 @@ async function render() {
     remember(key, off);
   }
   canvas.style.transform = '';
-  if (R.zoom === 1) stage.scrollTo(0, 0);
+  R.lastSize = `${stage.clientWidth}x${stage.clientHeight}`;
+  lastWide = isWide();
+  if (R.scrollTo) {
+    stage.scrollTo(0, R.scrollTo === 'bottom' ? stage.scrollHeight : 0);
+    R.scrollTo = null;
+  }
   prerender(R.page + 1, token); prerender(R.page - 1, token);
 }
 
@@ -675,7 +724,7 @@ function closeReader() {
 
 // Zoom
 function setZoom(z) {
-  z = Math.max(1, Math.min(4, Math.round(z * 100) / 100));
+  z = Math.max(minZoom(), Math.min(4, Math.round(z * 100) / 100));
   if (z === R.zoom) return;
   const cx = (stage.scrollLeft + stage.clientWidth / 2) / Math.max(1, stage.scrollWidth);
   const cy = (stage.scrollTop + stage.clientHeight / 2) / Math.max(1, stage.scrollHeight);
@@ -718,8 +767,8 @@ stage.addEventListener('touchend', (e) => {
   const t = e.changedTouches[0];
   const dx = t.clientX - t0.x, dy = t.clientY - t0.y, dt = Date.now() - t0.time;
   const start = t0; t0 = null;
-  if (R.zoom > 1) {
-    // When zoomed, swipe only turns the page if already scrolled to the edge
+  if (canPan()) {
+    // When the page is wider than the screen, swipe only turns the page if already scrolled to the edge
     const atLeft = stage.scrollLeft <= 1, atRight = stage.scrollLeft + stage.clientWidth >= stage.scrollWidth - 1;
     if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5 && start.sl === stage.scrollLeft) {
       if (dx > 0 && atLeft) leftAction(); else if (dx < 0 && atRight) rightAction();
@@ -737,7 +786,7 @@ stage.addEventListener('touchend', () => { lastTouch = Date.now(); }, { passive:
 stage.addEventListener('click', (e) => {
   // Mouse clicks (desktop). Touch taps are already handled in touchend.
   if (Date.now() - lastTouch < 800) return;
-  if (R.zoom > 1) return;
+  if (canPan()) return;
   handleTap(e.clientX);
 });
 function handleTap(x) {
@@ -746,10 +795,26 @@ function handleTap(x) {
   else if (x > w * 0.7) rightAction();
   else toggleBars();
 }
-function toggleBars() { $('reader').classList.toggle('immersive'); setTimeout(() => { R.cache.clear(); render(); }, 230); }
+function toggleBars() { $('reader').classList.toggle('immersive'); }
 
-let resizeTimer;
-window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (R.pdf) { R.cache.clear(); render(); } }, 200); });
+// Re-fit the page whenever the reading area changes size (rotation, bars hidden/shown).
+// Phones report the new size in steps while rotating, so wait for it to settle.
+let resizeTimer, lastWide = null;
+function onStageResize() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (!R.pdf) return;
+    const size = `${stage.clientWidth}x${stage.clientHeight}`;
+    if (size === R.lastSize) return;
+    const wide = isWide();
+    if (lastWide !== null && wide !== lastWide) { R.zoom = 1; R.scrollTo = 'top'; }  // rotated: reset to fit
+    lastWide = wide;
+    R.cache.clear();
+    render();
+  }, 150);
+}
+new ResizeObserver(onStageResize).observe(stage);
+window.addEventListener('orientationchange', () => setTimeout(onStageResize, 400));
 
 // ---- Pages sheet ----
 $('pageBtn').addEventListener('click', () => {
